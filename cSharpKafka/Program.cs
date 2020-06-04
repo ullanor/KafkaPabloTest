@@ -15,6 +15,9 @@ namespace cSharpKafka
         public static void Main(string[] args)
         {
             Console.WriteLine("Kafka Client by Pablo 44003");
+            Console.Write("Server IP addresss: ");
+            IP_and_PORT = Console.ReadLine()+":9092";
+            Console.WriteLine(Environment.NewLine+"IP: " + IP_and_PORT);
             Console.WriteLine("0 - producers 1 - consumers");
             reader = Console.ReadLine();
             if (reader == "0")
