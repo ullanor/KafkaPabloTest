@@ -1,104 +1,85 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Confluent.Kafka;
 
-class Program
+namespace cSharpKafka
 {
-    static string IP_and_PORT = "10.10.9.17:9092";
-    //----------------------- +++ ------------------------------
-    static string message = string.Empty;
-    static Random myRandom = new Random();
-    public static void Main(string[] args)
+    class Program
     {
-        Console.WriteLine("0 - producer 1 - consumer");
-        string readed = Console.ReadLine();
-        if (readed == "0")
-            Loop();
-        else MainConsumer(DateTime.Now.Ticks.ToString());
-    }
+        public static string IP_and_PORT = "10.10.9.17:9092";
+        static MyProducer[] MPs;
+        static MyConsumer[] MCs;
 
-    public static void Loop()
-    {
-        while (true)
+        static string reader = string.Empty;
+
+        public static void Main(string[] args)
         {
-            Console.Write("Enter producer message: ");
-            message = Console.ReadLine();
-            if(message == "exit")
-                break;
-            if (message == "")
-                continue;
-            var t = Task.Run(() => MainProducer(message));
-            t.Wait();
+            Console.WriteLine("Kafka Client by Pablo 44003");
+            Console.WriteLine("0 - producers 1 - consumers");
+            reader = Console.ReadLine();
+            if (reader == "0")
+                ProducersGeneration();
+            else ConsumentsGeneration();
         }
-    }
 
-    //-----------------------***----------------------
-    public static void MainConsumer(string randomGroupID) //-> always reads all messages from beginning!
-    {
-        var conf = new ConsumerConfig
+        public static void ConsumentsGeneration()
         {
-            GroupId = randomGroupID,
-            BootstrapServers = IP_and_PORT,
-            // Note: The AutoOffsetReset property determines the start offset in the event
-            // there are not yet any committed offsets for the consumer group for the
-            // topic/partitions of interest. By default, offsets are committed
-            // automatically, so in this example, consumption will only start from the
-            // earliest message in the topic 'my-topic' the first time you run the program.
-            AutoOffsetReset = AutoOffsetReset.Earliest
-        };
+            Console.Write(Environment.NewLine + "How many consumers? ");
+            reader = Console.ReadLine();
+            Console.WriteLine();
 
-        using (var c = new ConsumerBuilder<Ignore, string>(conf).Build())
+            int number;
+            int.TryParse(reader, out number);
+            if (number == 0) number = 1;
+            MCs = new MyConsumer[number];
+            for (int i = 0; i < number; i++)
+            {
+                Console.Write($"Consumer {i} name: ");
+                reader =  Console.ReadLine();
+                Console.WriteLine();
+                MCs[i] = new MyConsumer(reader, DateTime.Now.Ticks.ToString()+i);
+            }
+            ConsumersLoop();
+        }
+
+        static void ConsumersLoop()
         {
-            c.Subscribe("test-topic");
+            foreach (MyConsumer MC in MCs)
+                MC.ConsumeFromSeverInit();
+        }
 
-            CancellationTokenSource cts = new CancellationTokenSource();
-            Console.CancelKeyPress += (_, e) =>
-            {
-                e.Cancel = true; // prevent the process from terminating.
-                cts.Cancel();
-            };
+        //---------------------------------------------------------------------------
 
-            try
+        public static void ProducersGeneration()
+        {
+            Console.Write(Environment.NewLine + "How many producers? ");
+            reader = Console.ReadLine();
+            Console.WriteLine();
+
+            int number;
+            int.TryParse(reader, out number);
+            if (number == 0) number = 1;
+            MPs = new MyProducer[number];
+            for(int i = 0; i < number; i++)
             {
-                while (true)
+                MPs[i] = new MyProducer(Convert.ToInt16(i));
+            }
+            ProducersLoop();
+        }
+
+        static void ProducersLoop()
+        {
+            string message = string.Empty;
+            while (true)
+            {
+                Console.Write("Enter producers message: ");
+                message = Console.ReadLine();
+                Console.WriteLine();
+                foreach (MyProducer MP in MPs)
                 {
-                    try
-                    {
-                        var cr = c.Consume(cts.Token);
-                        Console.WriteLine($"Consumed message '{cr.Value}' at: '{cr.TopicPartitionOffset}'.");
-                    }
-                    catch (ConsumeException e)
-                    {
-                        Console.WriteLine($"Error occured: {e.Error.Reason}");
-                    }
+                    var t = Task.Run(() => MP.ProduceToServer(message));
+                    t.Wait();
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                // Ensure the consumer leaves the group cleanly and final offsets are committed.
-                c.Close();
-            }
-        }
-    }
-
-    public static async Task MainProducer(string msg)
-    {
-        var config = new ProducerConfig { BootstrapServers = IP_and_PORT };
-
-        // If serializers are not specified, default serializers from
-        // `Confluent.Kafka.Serializers` will be automatically used where
-        // available. Note: by default strings are encoded as UTF8.
-        using (var p = new ProducerBuilder<Null, string>(config).Build())
-        {
-            try
-            {
-                var dr = await p.ProduceAsync("test-topic", new Message<Null, string> { Value = msg });
-                Console.WriteLine($"Delivered '{dr.Value}' to '{dr.TopicPartitionOffset}'");
-            }
-            catch (ProduceException<Null, string> e)
-            {
-                Console.WriteLine($"Delivery failed: {e.Error.Reason}");
             }
         }
     }
